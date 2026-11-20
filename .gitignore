@@ -1,0 +1,8 @@
+node_modules/
+functions/node_modules/
+.firebase/
+functions/proyecto-web-service-account.json
+*.log
+.env
+.env.*
+.DS_Store

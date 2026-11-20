@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cierres de Ventas - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-100 text-slate-800 h-screen flex flex-col">
+    <!-- Header -->
+    <header
+      class="bg-slate-900 text-white p-4 shadow-md flex justify-between items-center z-10"
+    >
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-truck-moving text-2xl text-blue-500"></i>
+        <span class="font-bold text-xl tracking-wide">TractoCRM - Cierres</span>
+      </div>
+      <button
+        onclick="window.location.href = 'index.html'"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition"
+      >
+        <i class="fa-solid fa-arrow-left mr-2"></i> Volver al Dashboard
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto p-6">
+      <div class="max-w-7xl mx-auto">
+        <div
+          class="flex flex-col md:flex-row justify-between items-center mb-6"
+        >
+          <h1 class="text-3xl font-bold text-slate-800">Cierres de Ventas</h1>
+          <div class="text-sm text-slate-500">
+            Solo visible para Administradores
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-12">
+          <i
+            class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-600 mb-4"
+          ></i>
+          <p class="text-slate-600">Cargando información...</p>
+        </div>
+
+        <!-- Unauthorized State -->
+        <div
+          id="unauthorized"
+          class="hidden text-center py-12 bg-white rounded-xl shadow-sm border border-red-200"
+        >
+          <div
+            class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4"
+          >
+            <i class="fa-solid fa-lock text-3xl"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-800 mb-2">
+            Acceso Denegado
+          </h2>
+          <p class="text-slate-600 mb-6">
+            No tienes permisos de administrador para ver esta página.
+          </p>
+          <button
+            onclick="window.location.href = 'index.html'"
+            class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-2 rounded-lg transition"
+          >
+            Volver al Inicio
+          </button>
+        </div>
+
+        <!-- Content Table -->
+        <div
+          id="content"
+          class="hidden bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+        >
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead
+                class="bg-slate-50 text-slate-500 text-xs uppercase font-semibold border-b border-slate-200"
+              >
+                <tr>
+                  <th class="p-4">Fecha</th>
+                  <th class="p-4">Cliente / Empresa</th>
+                  <th class="p-4">Contacto</th>
+                  <th class="p-4">Unidad Interés</th>
+                  <th class="p-4">Vendedor</th>
+                  <th class="p-4 text-center">Monto (Est.)</th>
+                </tr>
+              </thead>
+              <tbody
+                id="cierres-table-body"
+                class="divide-y divide-slate-100 text-sm text-slate-700"
+              >
+                <!-- Rows will be populated here -->
+              </tbody>
+            </table>
+          </div>
+          <div id="empty-state" class="hidden p-12 text-center">
+            <div
+              class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4"
+            >
+              <i class="fa-solid fa-inbox text-3xl"></i>
+            </div>
+            <p class="text-slate-500">
+              No hay ventas cerradas registradas aún.
+            </p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+      import {
+        getFirestore,
+        collection,
+        query,
+        where,
+        getDocs,
+        doc,
+        getDoc,
+      } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyD0hZwfRfiYJliysT4v42JT0r7HV37IxIU",
+        authDomain: "app-crm-camiones.firebaseapp.com",
+        projectId: "app-crm-camiones",
+        storageBucket: "app-crm-camiones.firebasestorage.app",
+        messagingSenderId: "241190039626",
+        appId: "1:241190039626:web:ebb95aca494519083df6b3",
+        measurementId: "G-CZF5RBFQ68",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+
+      // Fetch User Data to check Role
+      async function checkAdminAndLoadData(user) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists() && userDoc.data().role === "admin") {
+            // Is Admin - Load Data
+            loadClosedSales();
+          } else {
+            // Not Admin
+            showUnauthorized();
+          }
+        } catch (error) {
+          console.error("Error checking permissions:", error);
+          showUnauthorized();
+        }
+      }
+
+      function showUnauthorized() {
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("unauthorized").classList.remove("hidden");
+      }
+
+      async function loadClosedSales() {
+        try {
+          // Query for invoiced orders (pedidos)
+          const q = query(
+            collection(db, "pedidos"),
+            where("status", "==", "facturado")
+          );
+          const querySnapshot = await getDocs(q);
+
+          const tableBody = document.getElementById("cierres-table-body");
+          const contentDiv = document.getElementById("content");
+          const emptyState = document.getElementById("empty-state");
+          const loadingDiv = document.getElementById("loading");
+
+          tableBody.innerHTML = ""; // Clear existing
+
+          if (querySnapshot.empty) {
+            loadingDiv.classList.add("hidden");
+            contentDiv.classList.remove("hidden");
+            emptyState.classList.remove("hidden");
+            return;
+          }
+
+          // Filter results by current month to match dashboard
+          let sales = [];
+          const now = new Date();
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+
+          querySnapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const dateClosedRaw = data.fechaFactura || data.fechaCierre || data.createdAt || data.fecha_registro || data.fecha;
+            const fechaCierre = dateClosedRaw && dateClosedRaw.toDate ? dateClosedRaw.toDate() : null;
+
+            if (fechaCierre && 
+                fechaCierre.getMonth() === currentMonth && 
+                fechaCierre.getFullYear() === currentYear) {
+              sales.push({ id: docSnap.id, ...data, fechaCierreParsed: fechaCierre });
+            }
+          });
+
+          if (sales.length === 0) {
+            loadingDiv.classList.add("hidden");
+            contentDiv.classList.remove("hidden");
+            emptyState.classList.remove("hidden");
+            tableBody.innerHTML = "";
+            return;
+          }
+
+          // Sort by date
+          sales.sort((a, b) => {
+            const dateA = a.fechaCierreParsed || new Date(0);
+            const dateB = b.fechaCierreParsed || new Date(0);
+            return dateB - dateA;
+          });
+
+          // Fetch associated Clients for presentation
+          const salesWithClients = await Promise.all(sales.map(async (sale) => {
+             sale.clientData = {};
+             if (sale.clienteId) {
+               try {
+                 const clientSnap = await getDoc(doc(db, "clientes", sale.clienteId));
+                 if (clientSnap.exists()) {
+                   sale.clientData = clientSnap.data();
+                 }
+               } catch (e) {
+                 console.error("Error fetching client for sale", sale.id, e);
+               }
+             }
+             return sale;
+          }));
+
+          salesWithClients.forEach((sale) => {
+            const client = sale.clientData;
+            const row = document.createElement("tr");
+            row.className = "hover:bg-slate-50 transition";
+
+            // Format Date
+            let dateStr = "Sin fecha";
+            if (sale.fechaCierreParsed) {
+              dateStr = sale.fechaCierreParsed.toLocaleDateString("es-MX", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              });
+            }
+
+            const vendedor = sale.userId
+              ? "ID: " + sale.userId.slice(0, 5) + "..."
+              : "Sin asignar";
+              
+            // Vehicle Description
+            const vehicleInfo = sale.vehiculo 
+              ? `${sale.vehiculo.marca || ""} ${sale.vehiculo.modelo || ""} ${sale.vehiculo.anio || ""}`.trim()
+              : (client.interes || "-");
+              
+            // Financial Value
+            const saleValue = sale.financiero?.total || 0;
+
+            row.innerHTML = `
+                        <td class="p-4 text-slate-500 whitespace-nowrap">${dateStr}</td>
+                        <td class="p-4 font-medium text-slate-800">
+                            ${client.nombre || "Sin Nombre"}
+                            ${
+                              client.empresa
+                                ? `<br><span class="text-xs text-slate-400 font-normal">${client.empresa}</span>`
+                                : ""
+                            }
+                        </td>
+                        <td class="p-4 text-slate-600">
+                            ${client.telefono || "-"} <br>
+                            <span class="text-xs text-slate-400">${
+                              client.email || ""
+                            }</span>
+                        </td>
+                        <td class="p-4 text-slate-600">${
+                           vehicleInfo || "-"
+                        } <br><span class="text-xs text-slate-400">Folio: #${sale.id.slice(0,8).toUpperCase()}</span></td>
+                        <td class="p-4 text-slate-500 text-xs">${vendedor}</td>
+                        <td class="p-4 text-center font-bold text-green-600">
+                            $${Number(saleValue).toLocaleString("es-MX", {minimumFractionDigits: 2})}
+                        </td>
+                    `;
+            tableBody.appendChild(row);
+          });
+
+          loadingDiv.classList.add("hidden");
+          contentDiv.classList.remove("hidden");
+        } catch (error) {
+          console.error("Error loading sales:", error);
+          document.getElementById("loading").innerHTML =
+            `<p class="text-red-500">Error al cargar datos: ${error.message}</p>`;
+        }
+      }
+
+      // Auth Listener
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          checkAdminAndLoadData(user);
+        } else {
+          // Not logged in, redirect to login
+          window.location.href = "index.html";
+        }
+      });
+    </script>
+  </body>
+</html>

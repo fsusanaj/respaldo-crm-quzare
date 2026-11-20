@@ -1,0 +1,22 @@
+{
+  "name": "CRM Camiones",
+  "gcm_sender_id": "103953800507",
+  "short_name": "CRM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1e40af",
+  "description": "Sistema de gestión de clientes y pedidos para camiones.",
+  "icons": [
+    {
+      "src": "img/logo-quzare.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "img/logo-quzare.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

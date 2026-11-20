@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperUser() {
+      return isAuthenticated() && request.auth.token.email == 'fsusanaj@gmail.com';
+    }
+
+    function isSystemActive() {
+      return !exists(/databases/$(database)/documents/system_config/billing_status) ||
+             get(/databases/$(database)/documents/system_config/billing_status).data.get('isSuspended', false) != true;
+    }
+
+    // =========================================================
+    // 1. CONFIGURACIÓN DEL SISTEMA Y FACTURACIÓN (SUPERUSUARIO)
+    // =========================================================
+    match /system_config/billing_status {
+      // Cualquiera (incluso antes de autenticarse) puede leer el estado para validar bloqueo
+      allow read: if true;
+      // Solo el superusuario desarrollador puede suspender o reactivar el servicio
+      allow write: if isSuperUser();
+    }
+
+    match /system_config/app_version {
+      // Cualquiera puede leer la versión para sincronización y recarga forzada
+      allow read: if true;
+      // Solo el superusuario puede actualizar la versión del sistema
+      allow write: if isSuperUser();
+    }
+
+    match /system_config/{docId} {
+      allow read: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      allow write: if isSuperUser();
+    }
+
+    // =========================================================
+    // 2. USUARIOS Y PERFILES
+    // =========================================================
+    match /users/{userId} {
+      allow read: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      // Superusuario puede gestionar usuarios; usuarios normales solo pueden actualizar su presencia si el sistema está activo
+      allow write: if isSuperUser() || (isAuthenticated() && isSystemActive() && request.auth.uid == userId);
+    }
+
+    // =========================================================
+    // 3. CLIENTES / PROSPECTOS / HISTORIAL / RECORDATORIOS
+    // =========================================================
+    match /clientes/{clienteId} {
+      allow read: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      allow write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+
+      match /{subCollection=**} {
+        allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      }
+    }
+
+    // =========================================================
+    // 4. INVENTARIO DE UNIDADES Y CAMIONES
+    // =========================================================
+    match /inventario/{unitId} {
+      allow read: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      allow write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+
+      match /{subCollection=**} {
+        allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      }
+    }
+
+    // =========================================================
+    // 5. COTIZACIONES Y COMENTARIOS
+    // =========================================================
+    match /cotizaciones/{cotizacionId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+
+      match /{subCollection=**} {
+        allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      }
+    }
+
+    // =========================================================
+    // 6. PEDIDOS Y VENTAS
+    // =========================================================
+    match /pedidos/{pedidoId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+
+      match /{subCollection=**} {
+        allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+      }
+    }
+
+    // =========================================================
+    // 7. HERRAMIENTAS Y ASIGNACIONES
+    // =========================================================
+    match /tools_inventory/{toolId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+
+    match /tools_assignments/{assignmentId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+
+    // =========================================================
+    // 8. EMPLEADOS / RRHH / NOTIFICACIONES / UTILIDADES
+    // =========================================================
+    match /employees/{employeeId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+
+    match /notifications/{notifId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+
+    match /utilidades/{utilId} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+
+    // =========================================================
+    // 9. REGLA POR DEFECTO PARA CUALQUIER OTRA COLECCIÓN
+    // =========================================================
+    match /{document=**} {
+      allow read, write: if isSuperUser() || (isAuthenticated() && isSystemActive());
+    }
+  }
+}
